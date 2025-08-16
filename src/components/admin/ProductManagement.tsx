@@ -36,6 +36,8 @@ const ProductManagement: React.FC = () => {
     mockupImage: null,
     engravingBoundary: { x: 0, y: 0, width: 100, height: 100 }
   });
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [existingMockup, setExistingMockup] = useState<string>('');
   const [boundarySelection, setBoundarySelection] = useState<{
     startX: number;
     startY: number;
@@ -186,55 +188,86 @@ const ProductManagement: React.FC = () => {
     drawBoundary();
   }, [mockupPreview, formData.engravingBoundary, boundarySelection]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.mockupImage) {
+    // For new products, mockup is required
+    if (!editingProduct && !formData.mockupImage) {
       alert('Please upload a mockup image');
       return;
     }
 
-    // Convert files to data URLs
-    const imagePromises = formData.images.map(file => {
-      return new Promise<string>((resolve) => {
+    // For editing, use existing mockup if no new one is uploaded
+    if (editingProduct && !formData.mockupImage && !existingMockup) {
+      alert('Please upload a mockup image');
+      return;
+    }
+
+    // Handle images - use existing ones if no new ones uploaded during edit
+    let imageUrls: string[] = [];
+    let mockupUrl: string = '';
+
+    if (editingProduct) {
+      // Editing mode - use existing images/mockup if no new ones uploaded
+      imageUrls = formData.images.length > 0 
+        ? await Promise.all(formData.images.map(file => {
+            return new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.readAsDataURL(file);
+            });
+          }))
+        : existingImages; // Use existing images if no new ones
+
+      mockupUrl = formData.mockupImage 
+        ? await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.readAsDataURL(formData.mockupImage!);
+          })
+        : existingMockup; // Use existing mockup if no new one
+    } else {
+      // New product mode - convert files to data URLs
+      const imagePromises = formData.images.map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+      });
+
+      const mockupPromise = new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target?.result as string);
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(formData.mockupImage!);
       });
-    });
 
-    const mockupPromise = new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string);
-      reader.readAsDataURL(formData.mockupImage!);
-    });
+      const urls = await Promise.all([...imagePromises, mockupPromise]);
+      mockupUrl = urls.pop()!;
+      imageUrls = urls;
+    }
 
-    Promise.all([...imagePromises, mockupPromise]).then((urls) => {
-      const mockupUrl = urls.pop()!;
-      const imageUrls = urls;
+    const productData: Omit<Product, 'id'> = {
+      name: formData.name,
+      description: formData.description,
+      price: formData.price,
+      surfaceTone: formData.surfaceTone,
+      images: imageUrls,
+      mockupImage: mockupUrl,
+      engravingBoundary: formData.engravingBoundary
+    };
 
-      const productData: Omit<Product, 'id'> = {
-        name: formData.name,
-        description: formData.description,
-        price: formData.price,
-        surfaceTone: formData.surfaceTone,
-        images: imageUrls,
-        mockupImage: mockupUrl,
-        engravingBoundary: formData.engravingBoundary
-      };
+    if (editingProduct) {
+      updateProduct({ ...productData, id: editingProduct.id });
+    } else {
+      addProduct({
+        id: Date.now().toString(),
+        ...productData
+      });
+    }
 
-      if (editingProduct) {
-        updateProduct({ ...productData, id: editingProduct.id });
-      } else {
-        addProduct({
-          id: Date.now().toString(),
-          ...productData
-        });
-      }
-
-      resetForm();
-      setIsModalOpen(false);
-    });
+    resetForm();
+    setIsModalOpen(false);
   };
 
   const resetForm = () => {
@@ -249,6 +282,8 @@ const ProductManagement: React.FC = () => {
     });
     setEditingProduct(null);
     setMockupPreview('');
+    setExistingImages([]);
+    setExistingMockup('');
     setBoundarySelection({
       startX: 0,
       startY: 0,
@@ -265,10 +300,12 @@ const ProductManagement: React.FC = () => {
       description: product.description,
       price: product.price,
       surfaceTone: product.surfaceTone,
-      images: [],
-      mockupImage: null,
+      images: [], // Will be handled separately for editing
+      mockupImage: null, // Will be handled separately for editing
       engravingBoundary: product.engravingBoundary
     });
+    setExistingImages(product.images);
+    setExistingMockup(product.mockupImage);
     setMockupPreview(product.mockupImage);
     setIsModalOpen(true);
   };
@@ -401,28 +438,76 @@ const ProductManagement: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Product Images</label>
+                  
+                  {/* Show existing images if editing */}
+                  {editingProduct && existingImages.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-sm text-gray-600 mb-2">Current images:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {existingImages.map((image, index) => (
+                          <div key={index} className="relative">
+                            <img 
+                              src={image} 
+                              alt={`Product ${index + 1}`} 
+                              className="w-16 h-16 object-cover rounded border"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
                   <Input
                     type="file"
                     multiple
                     accept="image/*"
                     onChange={(e) => handleImageUpload(e, 'images')}
-                    required
+                    required={!editingProduct} // Only required for new products
                   />
                   <p className="text-sm text-gray-500 mt-1">
-                    Select multiple images for product showcase
+                    {editingProduct 
+                      ? 'Upload new images to replace existing ones (optional)'
+                      : 'Select multiple images for product showcase'
+                    }
+                    {editingProduct && existingImages.length > 0 && (
+                      <span className="block text-blue-600 mt-1">
+                        💡 Existing images will be preserved if no new ones are uploaded
+                      </span>
+                    )}
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Flat Mockup Image</label>
+                  
+                  {/* Show existing mockup if editing */}
+                  {editingProduct && existingMockup && (
+                    <div className="mb-3">
+                      <p className="text-sm text-gray-600 mb-2">Current mockup:</p>
+                      <img 
+                        src={existingMockup} 
+                        alt="Current mockup" 
+                        className="w-32 h-32 object-cover rounded border"
+                      />
+                    </div>
+                  )}
+                  
                   <Input
                     type="file"
                     accept="image/*"
                     onChange={(e) => handleImageUpload(e, 'mockupImage')}
-                    required
+                    required={!editingProduct} // Only required for new products
                   />
                   <p className="text-sm text-gray-500 mt-1">
-                    This image will be used as the design canvas
+                    {editingProduct 
+                      ? 'Upload new mockup to replace existing one (optional)'
+                      : 'This image will be used as the design canvas'
+                    }
+                    {editingProduct && existingMockup && (
+                      <span className="block text-blue-600 mt-1">
+                        💡 Existing mockup will be preserved if no new one is uploaded
+                      </span>
+                    )}
                   </p>
                 </div>
 
