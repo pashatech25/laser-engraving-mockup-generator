@@ -260,10 +260,8 @@ const ProductManagement: React.FC = () => {
     if (editingProduct) {
       updateProduct({ ...productData, id: editingProduct.id });
     } else {
-      addProduct({
-        id: Date.now().toString(),
-        ...productData
-      });
+      // Let the database generate the UUID automatically
+      addProduct(productData);
     }
 
     resetForm();

@@ -67,7 +67,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addProduct = async (product: Product) => {
+  const addProduct = async (product: Omit<Product, 'id'>) => {
     try {
       const { error } = await supabase
         .from(TABLES.PRODUCTS)

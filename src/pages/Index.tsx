@@ -46,8 +46,7 @@ const Index: React.FC = () => {
   const handleJobSubmitted = async (formData: { name: string; email: string; phone: string }) => {
     if (!selectedProduct || !uploadedImage || !processedImage) return;
 
-    const newJob: Job = {
-      id: Date.now().toString(),
+    const newJob: Omit<Job, 'id'> = {
       customerName: formData.name,
       customerEmail: formData.email,
       customerPhone: formData.phone,
@@ -62,13 +61,18 @@ const Index: React.FC = () => {
     };
 
     // Don't add job yet - wait for mockup generation
-    setCurrentJob(newJob);
+    // Create a temporary job object for state management
+    const tempJob: Job = {
+      id: 'temp-' + Date.now().toString(), // Temporary ID for state management
+      ...newJob
+    };
+    setCurrentJob(tempJob);
     
     // Generate the mockup immediately and go to success
     await generateMockupAndGoToSuccess(newJob);
   };
 
-  const generateMockupAndGoToSuccess = async (job: Job) => {
+  const generateMockupAndGoToSuccess = async (job: Omit<Job, 'id'>) => {
     if (!selectedProduct) return;
     
     // Generate final mockup image
@@ -183,14 +187,19 @@ const Index: React.FC = () => {
             const mockupDataUrl = canvas.toDataURL('image/png');
             
             // Update the current job with the mockup
-            const updatedJob: Job = {
+            const updatedJob: Omit<Job, 'id'> = {
               ...job,
               mockupImage: mockupDataUrl
             };
             
             // Add job to context only once
             addJob(updatedJob).then(() => {
-              setCurrentJob(updatedJob);
+              // Create a temporary job object for state management
+              const tempJob: Job = {
+                id: 'temp-' + Date.now().toString(),
+                ...updatedJob
+              };
+              setCurrentJob(tempJob);
               setCurrentStep('success');
             }).catch(error => {
               console.error('Error adding job:', error);
@@ -246,14 +255,19 @@ const Index: React.FC = () => {
           
           const mockupDataUrl = canvas.toDataURL('image/png');
           
-          const updatedJob: Job = {
+          const updatedJob: Omit<Job, 'id'> = {
             ...job,
             mockupImage: mockupDataUrl
           };
           
           // Add job to context only once
           addJob(updatedJob).then(() => {
-            setCurrentJob(updatedJob);
+            // Create a temporary job object for state management
+            const tempJob: Job = {
+              id: 'temp-' + Date.now().toString(),
+              ...updatedJob
+            };
+            setCurrentJob(tempJob);
             setCurrentStep('success');
           }).catch(error => {
             console.error('Error adding job:', error);
