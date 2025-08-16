@@ -1,294 +1,570 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Building, 
+  CreditCard, 
+  Settings as SettingsIcon, 
+  Mail, 
+  MessageSquare,
+  Phone,
+  Send,
+  CheckCircle,
+  AlertCircle
+} from 'lucide-react';
+import { loadSettings, saveSettings, AppSettings, BusinessSettings, PaymentSettings, GeneralSettings, EmailSettings, SMSSettings } from '../../utils/settings';
+import { sendOrderConfirmationEmail } from '../../utils/email';
+import { sendTestSMS } from '../../utils/sms';
+import { Job, Product } from '../../types';
 import { useApp } from '../../contexts/AppContext';
-import { Settings, Database, Trash2, Download, Upload, Info } from 'lucide-react';
 
 const SettingsManagement: React.FC = () => {
-  const { products, jobs, logoutAdmin } = useApp();
-  const [isExporting, setIsExporting] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
+  const { logoutAdmin } = useApp();
+  const [settings, setSettings] = useState<AppSettings>({
+    business: { businessName: '', businessEmail: '', phoneNumber: '', businessAddress: '', businessLogo: '' },
+    payment: { paymentTiming: 'before_submission', stripePublishableKey: '', stripeSecretKey: '' },
+    general: { country: 'United States', currency: 'US Dollar ($)', taxRate: 0 },
+    email: { resendApiKey: '', fromEmail: '', emailNotifications: false },
+    sms: { twilioAccountSid: '', twilioAuthToken: '', twilioPhoneNumber: '', smsNotifications: false }
+  });
+  const [activeTab, setActiveTab] = useState('business');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const exportData = () => {
-    setIsExporting(true);
-    
-    const data = {
-      products,
-      jobs,
-      exportDate: new Date().toISOString(),
-      version: '1.0.0'
-    };
+  useEffect(() => {
+    loadSettingsData();
+  }, []);
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `laser-engraving-data-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    
-    setTimeout(() => setIsExporting(false), 1000);
-  };
-
-  const importData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setIsImporting(true);
-    const reader = new FileReader();
-    
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string);
-        console.log('Import data:', data);
-        // In a real app, you would validate and import the data
-        alert('Data import functionality would be implemented here');
-      } catch (error) {
-        alert('Invalid data format');
-      } finally {
-        setIsImporting(false);
+  const loadSettingsData = async () => {
+    try {
+      setLoading(true);
+      const loadedSettings = await loadSettings();
+      if (loadedSettings) {
+        setSettings(loadedSettings);
       }
-    };
-    
-    reader.readAsText(file);
-  };
-
-  const clearAllData = () => {
-    if (window.confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
-      if (window.confirm('This will delete ALL products and orders. Are you absolutely sure?')) {
-        // In a real app, you would clear the data
-        alert('Data clearing functionality would be implemented here');
-      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      // Keep default settings if loading fails
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getSystemStats = () => {
-    const totalProducts = products.length;
-    const totalJobs = jobs.length;
-    const totalRevenue = jobs.reduce((sum, job) => sum + job.product.price, 0);
-    const uniqueCustomers = new Set(jobs.map(job => job.customerEmail)).size;
-    const pendingJobs = jobs.filter(job => job.status === 'pending').length;
-    
-    return {
-      totalProducts,
-      totalJobs,
-      totalRevenue,
-      uniqueCustomers,
-      pendingJobs
-    };
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const success = await saveSettings(settings);
+      if (success) {
+        alert('Settings saved successfully!');
+      } else {
+        alert('Error saving settings. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      alert('Error saving settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const stats = getSystemStats();
+  const updateSettings = (section: keyof AppSettings, updates: Partial<BusinessSettings | PaymentSettings | GeneralSettings | EmailSettings | SMSSettings>) => {
+    setSettings(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        ...updates
+      }
+    }));
+  };
+
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        updateSettings('business', { businessLogo: e.target?.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Don't render until settings are loaded
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const renderBusinessSettings = () => (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h3 className="text-lg font-medium text-gray-900 mb-4">Business Information</h3>
+      
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Business Name
+          </label>
+          <input
+            type="text"
+            value={settings.business.businessName}
+            onChange={(e) => updateSettings('business', { businessName: e.target.value })}
+            placeholder="Enter business name"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Business Email
+          </label>
+          <input
+            type="email"
+            value={settings.business.businessEmail}
+            onChange={(e) => updateSettings('business', { businessEmail: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Phone Number
+          </label>
+          <input
+            type="tel"
+            value={settings.business.phoneNumber}
+            onChange={(e) => updateSettings('business', { phoneNumber: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Business Address
+          </label>
+          <input
+            type="text"
+            value={settings.business.businessAddress}
+            onChange={(e) => updateSettings('business', { businessAddress: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Business Logo
+          </label>
+          <div className="flex items-center space-x-4">
+            {settings.business.businessLogo && (
+              <img 
+                src={settings.business.businessLogo} 
+                alt="Business Logo" 
+                className="w-16 h-16 object-cover rounded border"
+              />
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleLogoUpload}
+              className="hidden"
+              id="logo-upload"
+            />
+            <label
+              htmlFor="logo-upload"
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer transition-colors"
+            >
+              <Send className="h-4 w-4" />
+              <span>Upload Logo</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderPaymentSettings = () => (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Settings</h3>
+      
+      <div className="space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Payment Timing
+          </label>
+          <div className="space-y-3">
+            <label className="flex items-center space-x-3">
+              <input
+                type="radio"
+                name="paymentTiming"
+                value="before_submission"
+                checked={settings.payment.paymentTiming === 'before_submission'}
+                onChange={(e) => updateSettings('payment', { paymentTiming: e.target.value as any })}
+                className="text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Payment required before order submission</span>
+            </label>
+            <label className="flex items-center space-x-3">
+              <input
+                type="radio"
+                name="paymentTiming"
+                value="at_pickup"
+                checked={settings.payment.paymentTiming === 'at_pickup'}
+                onChange={(e) => updateSettings('payment', { paymentTiming: e.target.value as any })}
+                className="text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Payment at pickup (both options available)</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Stripe Publishable Key
+          </label>
+          <input
+            type="text"
+            value={settings.payment.stripePublishableKey}
+            onChange={(e) => updateSettings('payment', { stripePublishableKey: e.target.value })}
+            placeholder="pk_test_..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Stripe Secret Key
+          </label>
+          <input
+            type="password"
+            value={settings.payment.stripeSecretKey}
+            onChange={(e) => updateSettings('payment', { stripeSecretKey: e.target.value })}
+            placeholder="sk_test_..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderGeneralSettings = () => (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h3 className="text-lg font-medium text-gray-900 mb-4">General Settings</h3>
+      
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Country</label>
+          <input
+            type="text"
+            value={settings.general.country}
+            onChange={(e) => updateSettings('general', { country: e.target.value })}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Currency</label>
+          <input
+            type="text"
+            value={settings.general.currency}
+            onChange={(e) => updateSettings('general', { currency: e.target.value })}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Tax Rate (%)</label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            max="100"
+            value={settings.general.taxRate * 100} // Display as percentage
+            onChange={(e) => {
+              const percentage = parseFloat(e.target.value) || 0;
+              const decimal = percentage / 100; // Convert to decimal (e.g., 15% = 0.15)
+              updateSettings('general', { taxRate: decimal });
+            }}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+          <p className="mt-1 text-sm text-gray-500">
+            Current tax rate: {(settings.general.taxRate * 100).toFixed(2)}%
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderEmailSettings = () => (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h3 className="text-lg font-medium text-gray-900 mb-4">Email Settings</h3>
+      
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Resend API Key
+          </label>
+          <input
+            type="password"
+            value={settings.email.resendApiKey}
+            onChange={(e) => updateSettings('email', { resendApiKey: e.target.value })}
+            placeholder="re_..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            From Email Address
+          </label>
+          <input
+            type="email"
+            value={settings.email.fromEmail}
+            onChange={(e) => updateSettings('email', { fromEmail: e.target.value })}
+            placeholder="noreply@yourbusiness.com"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <input
+            type="checkbox"
+            id="emailNotifications"
+            checked={settings.email.emailNotifications}
+            onChange={(e) => updateSettings('email', { emailNotifications: e.target.checked })}
+            className="text-blue-600 focus:ring-blue-500"
+          />
+          <label htmlFor="emailNotifications" className="text-sm text-gray-700">
+            Enable email notifications for order updates
+          </label>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => {
+              // Create a sample job for testing
+              const testJob: Job = {
+                id: 'test-' + Date.now(),
+                customerName: 'Test Customer',
+                customerEmail: 'test@example.com',
+                customerPhone: '+1234567890',
+                product: {
+                  id: 'test-product',
+                  name: 'Test Product',
+                  description: 'A test product for email testing',
+                  price: 29.99,
+                  images: [],
+                  surfaceTone: 'light',
+                  mockupImage: '',
+                  engravingBoundary: { x: 0, y: 0, width: 100, height: 100 }
+                },
+                uploadedImage: '',
+                processedImage: '',
+                mockupImage: '',
+                imagePosition: { x: 0, y: 0, scale: 1, rotation: 0 },
+                textLayers: [],
+                status: 'pending',
+                createdAt: new Date().toISOString()
+              };
+              
+              console.log('Testing email with job:', testJob);
+              console.log('Current email settings:', settings.email);
+              
+              sendOrderConfirmationEmail(testJob).then(success => {
+                if (success) {
+                  alert('Test email sent successfully! Check the console for details.');
+                } else {
+                  alert('Failed to send test email. Check the console for details.');
+                }
+              }).catch(error => {
+                console.error('Test email error:', error);
+                alert('Error sending test email: ' + error.message);
+              });
+            }}
+            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+          >
+            <Mail className="h-4 w-4" />
+            <span>Send Test Email</span>
+          </button>
+        </div>
+        
+        <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
+          <h4 className="text-sm font-medium text-green-800 mb-2">📧 Email Integration Ready</h4>
+          <p className="text-sm text-green-700">
+            Your email integration is now complete! The system will send real emails via Resend when:
+            orders are submitted, completed, or picked up. Make sure your backend server is running on port 3001.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSMSSettings = () => (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h3 className="text-lg font-medium text-gray-900 mb-4">SMS Settings</h3>
+      
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Twilio Account SID
+          </label>
+          <input
+            type="text"
+            value={settings.sms.twilioAccountSid}
+            onChange={(e) => updateSettings('sms', { twilioAccountSid: e.target.value })}
+            placeholder="AC..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Twilio Auth Token
+          </label>
+          <input
+            type="password"
+            value={settings.sms.twilioAuthToken}
+            onChange={(e) => updateSettings('sms', { twilioAuthToken: e.target.value })}
+            placeholder="..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Twilio Phone Number
+          </label>
+          <input
+            type="tel"
+            value={settings.sms.twilioPhoneNumber}
+            onChange={(e) => updateSettings('sms', { twilioPhoneNumber: e.target.value })}
+            placeholder="+1234567890"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <input
+            type="checkbox"
+            id="smsNotifications"
+            checked={settings.sms.smsNotifications}
+            onChange={(e) => updateSettings('sms', { smsNotifications: e.target.checked })}
+            className="text-blue-600 focus:ring-blue-500"
+          />
+          <label htmlFor="smsNotifications" className="text-sm text-gray-700">
+            Enable SMS notifications for order updates
+          </label>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => {
+              const testPhoneNumber = settings.sms.twilioPhoneNumber || 'your_phone_number';
+              const testMessage = 'This is a test SMS from your Laser Engraving system!';
+              sendTestSMS(testPhoneNumber, testMessage).then(() => {
+                alert('Test SMS sent successfully! Check your phone.');
+              }).catch(error => {
+                console.error('Test SMS error:', error);
+                alert('Error sending test SMS: ' + error.message);
+              });
+            }}
+            className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+          >
+            <Phone className="h-4 w-4" />
+            <span>Send Test SMS</span>
+          </button>
+        </div>
+
+        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+          <h4 className="text-sm font-medium text-blue-800 mb-2">💬 SMS Integration Ready</h4>
+          <p className="text-sm text-blue-700">
+            Your SMS integration is now complete! The system will send real SMS messages via Twilio when:
+            orders are submitted, completed, or picked up. Make sure your backend server is running on port 3001.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-6">
-      {/* Header */}
+      {/* Settings Section */}
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">Settings & System</h2>
-        <p className="text-gray-600">Manage system settings and data</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* System Information */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-              <Info className="h-5 w-5 mr-2 text-blue-600" />
-              System Information
-            </h3>
-            
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">App Version:</span>
-                <span className="font-medium">1.0.0</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Last Updated:</span>
-                <span className="font-medium">{new Date().toLocaleDateString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Environment:</span>
-                <span className="font-medium">Development</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Storage:</span>
-                <span className="font-medium">Local Storage</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-              <Database className="h-5 w-5 mr-2 text-green-600" />
-              Data Statistics
-            </h3>
-            
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Products:</span>
-                <span className="font-medium">{stats.totalProducts}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Orders:</span>
-                <span className="font-medium">{stats.totalJobs}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Revenue:</span>
-                <span className="font-medium">${stats.totalRevenue.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Unique Customers:</span>
-                <span className="font-medium">{stats.uniqueCustomers}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Pending Orders:</span>
-                <span className="font-medium">{stats.pendingJobs}</span>
-              </div>
-            </div>
-          </div>
+        <h2 className="text-xl font-semibold text-gray-900">Settings</h2>
+        
+        {/* Sub Navigation */}
+        <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
+          <button
+            onClick={() => setActiveTab('business')}
+            className={`px-4 py-2 rounded-md transition-colors ${
+              activeTab === 'business' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Business
+          </button>
+          <button
+            onClick={() => setActiveTab('payment')}
+            className={`px-4 py-2 rounded-md transition-colors ${
+              activeTab === 'payment' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Payment
+          </button>
+          <button
+            onClick={() => setActiveTab('general')}
+            className={`px-4 py-2 rounded-md transition-colors ${
+              activeTab === 'general' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-gray-900'
+            }`}
+          >
+            General
+          </button>
+          <button
+            onClick={() => setActiveTab('email')}
+            className={`px-4 py-2 rounded-md transition-colors ${
+              activeTab === 'email' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Email
+          </button>
+          <button
+            onClick={() => setActiveTab('sms')}
+            className={`px-4 py-2 rounded-md transition-colors ${
+              activeTab === 'sms' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            SMS
+          </button>
         </div>
 
-        {/* Data Management */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-              <Settings className="h-5 w-5 mr-2 text-purple-600" />
-              Data Management
-            </h3>
-            
-            <div className="space-y-4">
-              {/* Export Data */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Export Data
-                </label>
-                <p className="text-sm text-gray-500 mb-3">
-                  Download all products and orders as a JSON file
-                </p>
-                <button
-                  onClick={exportData}
-                  disabled={isExporting}
-                  className={`w-full flex items-center justify-center space-x-2 px-4 py-2 rounded-md transition-colors ${
-                    isExporting
-                      ? 'bg-gray-400 cursor-not-allowed'
-                      : 'bg-green-600 text-white hover:bg-green-700'
-                  }`}
-                >
-                  {isExporting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Exporting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4" />
-                      <span>Export All Data</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Import Data */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Import Data
-                </label>
-                <p className="text-sm text-gray-500 mb-3">
-                  Import products and orders from a JSON file
-                </p>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={importData}
-                    className="hidden"
-                    id="import-file"
-                  />
-                  <label
-                    htmlFor="import-file"
-                    className={`w-full flex items-center justify-center space-x-2 px-4 py-2 rounded-md cursor-pointer transition-colors ${
-                      isImporting
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
-                  >
-                    {isImporting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        <span>Importing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-4 w-4" />
-                        <span>Choose File to Import</span>
-                      </>
-                    )}
-                  </label>
-                </div>
-              </div>
-
-              {/* Clear Data */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Clear All Data
-                </label>
-                <p className="text-sm text-gray-500 mb-3">
-                  Remove all products and orders (cannot be undone)
-                </p>
-                <button
-                  onClick={clearAllData}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span>Clear All Data</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Account Management */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-              <Settings className="h-5 w-5 mr-2 text-orange-600" />
-              Account Management
-            </h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Admin Logout
-                </label>
-                <p className="text-sm text-gray-500 mb-3">
-                  Sign out of the admin panel
-                </p>
-                <button
-                  onClick={logoutAdmin}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-                >
-                  <span>Logout</span>
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* Save Button */}
+        <div className="flex justify-end mb-6">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors ${
+              saving ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            <Send className="w-4 h-4" />
+            <span>{saving ? 'Saving...' : 'Save Settings'}</span>
+          </button>
         </div>
-      </div>
 
-      {/* Warning */}
-      <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <Info className="h-5 w-5 text-yellow-400" />
-          </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-yellow-800">Important Notes</h3>
-            <div className="mt-2 text-sm text-yellow-700">
-              <ul className="list-disc pl-5 space-y-1">
-                <li>This is a demo application using local storage</li>
-                <li>Data is stored in your browser and will be lost if you clear browser data</li>
-                <li>For production use, implement proper backend storage and authentication</li>
-                <li>Regular data backups are recommended</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+        {/* Content */}
+        {activeTab === 'business' && renderBusinessSettings()}
+        {activeTab === 'payment' && renderPaymentSettings()}
+        {activeTab === 'general' && renderGeneralSettings()}
+        {activeTab === 'email' && renderEmailSettings()}
+        {activeTab === 'sms' && renderSMSSettings()}
       </div>
     </div>
   );

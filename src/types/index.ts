@@ -43,7 +43,7 @@ export interface Job {
     rotation: number;
   };
   textLayers: TextLayer[];
-  status: 'pending' | 'processing' | 'completed' | 'cancelled';
+  status: 'pending' | 'processing' | 'completed' | 'cancelled' | 'picked_up';
   createdAt: string;
 }
 

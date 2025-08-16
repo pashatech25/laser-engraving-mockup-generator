@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
+import { Product, Job, TextLayer } from '../types';
 import ProductSelector from '../components/ProductSelector';
 import ImageUpload from '../components/ImageUpload';
 import EnhancedMockupEditor from '../components/EnhancedMockupEditor';
 import JobForm from '../components/JobForm';
 import JobSuccess from '../components/JobSuccess';
-import { Job, Product } from '../types';
+import { sendOrderConfirmationEmail } from '../utils/email';
+import { sendOrderConfirmationSMS } from '../utils/sms';
 
 const Index: React.FC = () => {
   const { addJob } = useApp();
@@ -43,7 +45,7 @@ const Index: React.FC = () => {
     setDesignTextLayers([]);
   };
 
-  const handleJobSubmitted = async (formData: { name: string; email: string; phone: string }) => {
+  const handleJobSubmitted = async (formData: { name: string; email: string; phone: string; paymentOption?: string }) => {
     if (!selectedProduct || !uploadedImage || !processedImage) return;
 
     const newJob: Omit<Job, 'id'> = {
@@ -193,7 +195,34 @@ const Index: React.FC = () => {
             };
             
             // Add job to context only once
-            addJob(updatedJob).then(() => {
+            addJob(updatedJob).then(async () => {
+              // Send order confirmation email
+              try {
+                const emailSent = await sendOrderConfirmationEmail({
+                  id: 'temp-' + Date.now().toString(),
+                  ...updatedJob
+                });
+                if (emailSent) {
+                  console.log('Order confirmation email sent successfully');
+                } else {
+                  console.log('Failed to send order confirmation email');
+                }
+              } catch (error) {
+                console.error('Error sending order confirmation email:', error);
+              }
+              
+              // Send order confirmation SMS
+              try {
+                const tempJob: Job = {
+                  id: 'temp-' + Date.now().toString(),
+                  ...updatedJob
+                };
+                await sendOrderConfirmationSMS(tempJob);
+                console.log('Order confirmation SMS sent successfully');
+              } catch (error) {
+                console.error('Error sending order confirmation SMS:', error);
+              }
+              
               // Create a temporary job object for state management
               const tempJob: Job = {
                 id: 'temp-' + Date.now().toString(),
@@ -261,7 +290,34 @@ const Index: React.FC = () => {
           };
           
           // Add job to context only once
-          addJob(updatedJob).then(() => {
+          addJob(updatedJob).then(async () => {
+            // Send order confirmation email
+            try {
+              const emailSent = await sendOrderConfirmationEmail({
+                id: 'temp-' + Date.now().toString(),
+                ...updatedJob
+              });
+              if (emailSent) {
+                console.log('Order confirmation email sent successfully');
+              } else {
+                console.log('Failed to send order confirmation email');
+              }
+            } catch (error) {
+              console.error('Error sending order confirmation email:', error);
+            }
+            
+            // Send order confirmation SMS
+            try {
+              const tempJob: Job = {
+                id: 'temp-' + Date.now().toString(),
+                ...updatedJob
+              };
+              await sendOrderConfirmationSMS(tempJob);
+              console.log('Order confirmation SMS sent successfully');
+            } catch (error) {
+              console.error('Error sending order confirmation SMS:', error);
+            }
+            
             // Create a temporary job object for state management
             const tempJob: Job = {
               id: 'temp-' + Date.now().toString(),
@@ -348,7 +404,7 @@ const Index: React.FC = () => {
                 Provide your contact information to submit your laser engraving job
               </p>
             </div>
-            <JobForm onSubmit={handleJobSubmitted} />
+            <JobForm onSubmit={handleJobSubmitted} selectedProduct={selectedProduct!} />
           </div>
         );
       case 'mockup':

@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { Job } from '../../types';
 import { Eye, Clock, CheckCircle, XCircle, Download, FileText } from 'lucide-react';
+import { sendOrderCompletionEmail } from '../../utils/email';
+import { sendOrderPickupEmail } from '../../utils/email';
+import { sendOrderCompletionSMS } from '../../utils/sms';
+import { sendOrderPickupSMS } from '../../utils/sms';
 
 const OrderManagement: React.FC = () => {
   const { jobs, updateJob } = useApp();
@@ -12,10 +16,58 @@ const OrderManagement: React.FC = () => {
     filterStatus === 'all' || job.status === filterStatus
   );
 
-  const updateJobStatus = (jobId: string, status: Job['status']) => {
-    const job = jobs.find(j => j.id === jobId);
-    if (job) {
-      updateJob({ ...job, status });
+  const updateJobStatus = async (jobId: string, newStatus: Job['status']) => {
+    try {
+      // Find the job to get current data
+      const currentJob = jobs.find(job => job.id === jobId);
+      if (!currentJob) {
+        alert('Job not found');
+        return;
+      }
+
+      // Create updated job object
+      const updatedJob = { ...currentJob, status: newStatus };
+      
+      // Update job in context
+      await updateJob(updatedJob);
+      
+      // Send notifications based on status change
+      if (newStatus === 'completed') {
+        // Send completion email
+        try {
+          await sendOrderCompletionEmail(updatedJob);
+          console.log('Order completion email sent successfully');
+        } catch (error) {
+          console.error('Failed to send order completion email:', error);
+        }
+        
+        // Send completion SMS
+        try {
+          await sendOrderCompletionSMS(updatedJob);
+          console.log('Order completion SMS sent successfully');
+        } catch (error) {
+          console.error('Failed to send order completion SMS:', error);
+        }
+      } else if (newStatus === 'picked_up') {
+        // Send pickup email
+        try {
+          await sendOrderPickupEmail(updatedJob);
+          console.log('Order pickup email sent successfully');
+        } catch (error) {
+          console.error('Failed to send order pickup email:', error);
+        }
+        
+        // Send pickup SMS
+        try {
+          await sendOrderPickupSMS(updatedJob);
+          console.log('Order pickup SMS sent successfully');
+        } catch (error) {
+          console.error('Failed to send order pickup SMS:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating job:', error);
+      alert('Failed to update job status');
     }
   };
 
@@ -132,16 +184,58 @@ const OrderManagement: React.FC = () => {
                     >
                       <Eye className="h-4 w-4" />
                     </button>
-                    <select
-                      value={job.status}
-                      onChange={(e) => updateJobStatus(job.id, e.target.value as Job['status'])}
-                      className="text-xs border border-gray-300 rounded px-2 py-1"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="processing">Processing</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => updateJobStatus(job.id, 'pending')}
+                        className={`px-3 py-1 text-xs rounded ${
+                          job.status === 'pending'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Pending
+                      </button>
+                      <button
+                        onClick={() => updateJobStatus(job.id, 'processing')}
+                        className={`px-3 py-1 text-xs rounded ${
+                          job.status === 'processing'
+                            ? 'bg-yellow-500 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Processing
+                      </button>
+                      <button
+                        onClick={() => updateJobStatus(job.id, 'completed')}
+                        className={`px-3 py-1 text-xs rounded ${
+                          job.status === 'completed'
+                            ? 'bg-green-500 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Completed
+                      </button>
+                      <button
+                        onClick={() => updateJobStatus(job.id, 'picked_up')}
+                        className={`px-3 py-1 text-xs rounded ${
+                          job.status === 'picked_up'
+                            ? 'bg-purple-500 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Picked Up
+                      </button>
+                      <button
+                        onClick={() => updateJobStatus(job.id, 'cancelled')}
+                        className={`px-3 py-1 text-xs rounded ${
+                          job.status === 'cancelled'
+                            ? 'bg-red-500 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Cancelled
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>
