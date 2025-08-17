@@ -1,0 +1,71 @@
+{
+  "serviceCategories": [
+    { "name": "Photography" },
+    { "name": "Video" },
+    { "name": "Floor Plans" }
+  ],
+  "services": [
+    {
+      "name": "Photo - Standard",
+      "category": "Photography",
+      "durationMins": 90,
+      "pricingMode": "sqft",
+      "basePrice": 0,
+      "tiers": [
+        { "sqftMin": 0, "sqftMax": 1500, "price": 200 },
+        { "sqftMin": 1501, "sqftMax": 2500, "price": 250 },
+        { "sqftMin": 2501, "sqftMax": 4000, "price": 325 }
+      ]
+    },
+    {
+      "name": "Cinematic Video",
+      "category": "Video",
+      "durationMins": 60,
+      "pricingMode": "flat",
+      "basePrice": 300
+    },
+    {
+      "name": "Floor Plan",
+      "category": "Floor Plans",
+      "durationMins": 45,
+      "pricingMode": "sqft",
+      "basePrice": 0,
+      "tiers": [
+        { "sqftMin": 0, "sqftMax": 2000, "price": 150 },
+        { "sqftMin": 2001, "sqftMax": 3500, "price": 200 }
+      ]
+    }
+  ],
+  "pricingGroups": [
+    {
+      "name": "Preferred Brokerage",
+      "rules": [
+        { "service": "Photo - Standard", "type": "multiplier", "value": 0.9 },
+        { "service": "Cinematic Video", "type": "override", "value": 275 }
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "name": "Essential",
+      "items": [
+        { "service": "Photo - Standard", "quantity": 1, "displayPriceOverride": 180 },
+        { "service": "Floor Plan", "quantity": 1 }
+      ],
+      "discount": { "type": "percent", "value": 10 }
+    },
+    {
+      "name": "Premier",
+      "items": [
+        { "service": "Photo - Standard", "quantity": 1, "displayPriceOverride": 175 },
+        { "service": "Cinematic Video", "quantity": 1, "displayPriceOverride": 260 },
+        { "service": "Floor Plan", "quantity": 1 }
+      ],
+      "discount": { "type": "flat", "value": 75 }
+    }
+  ],
+  "coupons": [
+    { "code": "NEW10", "type": "percent", "value": 10, "scope": "all" },
+    { "code": "VID50", "type": "flat", "value": 50, "scope": "service", "service": "Cinematic Video" }
+  ]
+}
