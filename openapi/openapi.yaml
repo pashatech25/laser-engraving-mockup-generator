@@ -1,0 +1,237 @@
+openapi: 3.0.3
+info:
+  title: Real Estate Media SaaS API
+  version: 0.1.0
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: http://localhost:4000
+    description: Local
+paths:
+  /auth/register:
+    post:
+      summary: Register user and create/join organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+                password: { type: string }
+                orgName: { type: string }
+      responses:
+        '201': { description: Created }
+  /auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200': { description: OK }
+  /organizations/me:
+    get:
+      summary: Get current organization
+      responses:
+        '200': { description: OK }
+  /services:
+    get: { summary: List services }
+    post:
+      summary: Create service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCreate'
+      responses:
+        '201': { description: Created }
+  /services/{id}:
+    patch: { summary: Update service }
+    delete: { summary: Delete service }
+  /services/{id}/tiers:
+    get: { summary: List pricing tiers }
+    post:
+      summary: Upsert pricing tiers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/PricingTier' }
+  /pricing-groups:
+    get: { summary: List pricing groups }
+    post: { summary: Create pricing group }
+  /pricing-groups/{id}/rules:
+    post: { summary: Upsert pricing group rules }
+  /packages:
+    get: { summary: List packages }
+    post: { summary: Create package }
+  /packages/{id}/items:
+    post: { summary: Upsert package items }
+  /coupons:
+    get: { summary: List coupons }
+    post: { summary: Create coupon }
+  /customers:
+    get: { summary: List customers }
+    post: { summary: Create customer }
+  /customer-groups:
+    get: { summary: List customer groups }
+    post: { summary: Create customer group }
+  /quote:
+    post:
+      summary: Compute quote (services, sqft, pricing group, coupons, packages)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+  /availability:
+    get:
+      summary: Get available slots for requested services/date
+      parameters:
+        - in: query
+          name: date
+          schema: { type: string, format: date }
+      responses:
+        '200': { description: OK }
+  /bookings:
+    post:
+      summary: Create booking (deposit/payment intent)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+      responses:
+        '201': { description: Created }
+  /bookings/{id}:
+    get: { summary: Get booking }
+    patch: { summary: Update booking (reschedule, reassign) }
+  /calendar/staff/{id}:
+    get: { summary: Staff calendar events }
+  /calendar/google/connect:
+    post: { summary: Connect Google Calendar (per staff OAuth) }
+  /media/presign:
+    post: { summary: Get S3 presigned URL for upload }
+  /media/complete:
+    post: { summary: Mark upload complete; trigger processing }
+  /properties:
+    get: { summary: List properties }
+    post: { summary: Create property }
+  /properties/{id}/website/publish:
+    post:
+      summary: Publish property site (branded|unbranded)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [branded, unbranded]
+  /download-center/{propertyId}:
+    get: { summary: Get download center metadata }
+  /invoices:
+    get: { summary: List invoices }
+    post: { summary: Create invoice }
+  /payments/intent:
+    post: { summary: Create Stripe payment intent }
+  /integrations/webhooks/stripe:
+    post: { summary: Stripe webhook }
+  /integrations/google/callback:
+    get: { summary: Google OAuth callback }
+
+components:
+  schemas:
+    ServiceCreate:
+      type: object
+      properties:
+        name: { type: string }
+        categoryId: { type: string }
+        durationMins: { type: integer }
+        pricingMode: { type: string, enum: [flat, sqft] }
+        basePrice: { type: number }
+    PricingTier:
+      type: object
+      properties:
+        sqftMin: { type: integer }
+        sqftMax: { type: integer }
+        price: { type: number }
+    QuoteRequest:
+      type: object
+      properties:
+        services:
+          type: array
+          items:
+            type: object
+            properties:
+              serviceId: { type: string }
+              sqftValue: { type: integer }
+              quantity: { type: integer }
+        packages:
+          type: array
+          items:
+            type: object
+            properties:
+              packageId: { type: string }
+              quantity: { type: integer }
+        pricingGroupId: { type: string }
+        couponCodes:
+          type: array
+          items: { type: string }
+    QuoteResponse:
+      type: object
+      properties:
+        subtotal: { type: number }
+        discounts: { type: number }
+        tax: { type: number }
+        total: { type: number }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              description: { type: string }
+              price: { type: number }
+              quantity: { type: integer }
+    BookingCreate:
+      type: object
+      properties:
+        customerId: { type: string }
+        property:
+          type: object
+          properties:
+            address: { type: string }
+            sqft: { type: integer }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              serviceId: { type: string }
+              sqftValue: { type: integer }
+              quantity: { type: integer }
+        preferredStaffId: { type: string }
+        scheduledAt: { type: string, format: date-time }
+        depositPercent: { type: number }

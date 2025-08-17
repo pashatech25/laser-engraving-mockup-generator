@@ -1,0 +1,194 @@
+classDiagram
+  direction LR
+
+  Organization "1" -- "many" User
+  Organization "1" -- "many" Customer
+  Organization "1" -- "many" Staff
+  Organization "1" -- "many" ServiceCategory
+  Organization "1" -- "many" PricingGroup
+  Organization "1" -- "many" CustomerGroup
+  Organization "1" -- "many" Territory
+  Organization "1" -- "many" Package
+  Organization "1" -- "many" Coupon
+  Organization "1" -- "many" Property
+
+  ServiceCategory "1" -- "many" Service
+  Service "1" -- "many" PricingTier
+  PricingGroup "1" -- "many" PricingGroupRule
+  CustomerGroup "1" -- "many" Customer
+  Package "1" -- "many" PackageItem
+  Property "1" -- "many" MediaAsset
+  Property "1" -- "0..1" PropertyWebsite
+  Customer "1" -- "many" Booking
+  Booking "1" -- "many" BookingItem
+  Booking "0..1" -- "1" Invoice
+  Invoice "1" -- "many" Payment
+  Staff "1" -- "many" CalendarEvent
+  Territory "1" -- "many" Booking
+
+  class Organization {
+    id uuid
+    name string
+    domain string
+    branding json
+    settings json
+  }
+  class User {
+    id uuid
+    org_id uuid
+    email string
+    password_hash string
+    role enum(Owner,Admin,Scheduler,Staff,Accounting,Customer)
+  }
+  class Customer {
+    id uuid
+    org_id uuid
+    name string
+    email string
+    phone string
+    customer_group_id uuid
+  }
+  class Staff {
+    id uuid
+    org_id uuid
+    user_id uuid
+    skills string[]
+    payout_policy_id uuid
+    google_calendar_connected bool
+  }
+  class ServiceCategory {
+    id uuid
+    org_id uuid
+    name string
+  }
+  class Service {
+    id uuid
+    org_id uuid
+    name string
+    category_id uuid
+    duration_mins int
+    pricing_mode enum(flat,sqft)
+    base_price decimal
+  }
+  class PricingTier {
+    id uuid
+    service_id uuid
+    sqft_min int
+    sqft_max int
+    price decimal
+  }
+  class PricingGroup {
+    id uuid
+    org_id uuid
+    name string
+  }
+  class PricingGroupRule {
+    id uuid
+    pricing_group_id uuid
+    service_id uuid
+    type enum(multiplier,override)
+    value decimal
+  }
+  class CustomerGroup {
+    id uuid
+    org_id uuid
+    name string
+    default_pricing_group_id uuid
+    terms json
+  }
+  class Package {
+    id uuid
+    org_id uuid
+    name string
+    description string
+    discount_type enum(flat,percent,none)
+    discount_value decimal
+    display_overrides_enabled bool
+  }
+  class PackageItem {
+    id uuid
+    package_id uuid
+    service_id uuid
+    quantity int
+    display_price_override decimal?
+  }
+  class Territory {
+    id uuid
+    org_id uuid
+    name string
+    polygon geometry
+    rules json
+  }
+  class Booking {
+    id uuid
+    org_id uuid
+    customer_id uuid
+    property_id uuid
+    staff_id uuid?
+    territory_id uuid
+    status enum(draft,confirmed,completed,cancelled)
+    scheduled_at timestamptz
+  }
+  class BookingItem {
+    id uuid
+    booking_id uuid
+    service_id uuid
+    sqft_value int?
+    computed_price decimal
+    discount_applied decimal
+  }
+  class Invoice {
+    id uuid
+    booking_id uuid
+    subtotal decimal
+    discounts decimal
+    tax decimal
+    total decimal
+    status enum(draft,open,paid,void)
+    due_date date
+    pdf_url string
+  }
+  class Payment {
+    id uuid
+    invoice_id uuid
+    processor enum(stripe)
+    intent_id string
+    amount decimal
+    status enum(pending,succeeded,failed,refunded)
+  }
+  class MediaAsset {
+    id uuid
+    property_id uuid
+    booking_id uuid?
+    type enum(photo,video,three_d,floorplan,document)
+    s3_key string
+    variants json
+    visibility enum(branded,unbranded,both)
+  }
+  class Property {
+    id uuid
+    org_id uuid
+    address string
+    sqft int
+    beds int
+    baths int
+    description text
+    mls json
+  }
+  class PropertyWebsite {
+    id uuid
+    property_id uuid
+    template_id uuid
+    published_url string
+    branding_mode enum(branded,unbranded)
+    analytics json
+  }
+  class CalendarEvent {
+    id uuid
+    staff_id uuid
+    booking_id uuid
+    start timestamptz
+    end timestamptz
+    buffer_before_mins int
+    buffer_after_mins int
+  }
