@@ -102,6 +102,46 @@ Deliver a multi-tenant SaaS for real estate media companies to sell services, sc
 - Row-level isolation by org_id; encrypted secrets; signed URLs; audit logs
 - GDPR exports/deletes; least-privilege keys; password hashing (Argon2)
 
+## API (MVP)
+- Reference: full OpenAPI spec lives at `openapi/openapi.yaml`
+- Auth
+  - Supabase Auth for sessions/JWT. Optionally keep `/auth/register` and `/auth/login` for server-managed flows.
+- Organizations
+  - GET `/organizations/me`
+- Services & Pricing
+  - GET/POST `/services`, PATCH/DELETE `/services/{id}`
+  - GET/POST `/services/{id}/tiers`
+  - GET/POST `/pricing-groups`, POST `/pricing-groups/{id}/rules`
+- Packages & Coupons
+  - GET/POST `/packages`, POST `/packages/{id}/items`
+  - GET/POST `/coupons`
+- Customers & Groups
+  - GET/POST `/customers`
+  - GET/POST `/customer-groups`
+- Quote & Availability
+  - POST `/quote` (compute totals with tiers/groups/coupons)
+  - GET `/availability` (slots by date/services)
+- Bookings & Calendar
+  - POST `/bookings`, GET/PATCH `/bookings/{id}`
+  - GET `/calendar/staff/{id}`
+  - POST `/calendar/google/connect` (per-staff OAuth)
+- Media & Properties
+  - POST `/media/presign`, POST `/media/complete`
+  - GET/POST `/properties`, POST `/properties/{id}/website/publish`
+  - GET `/download-center/{propertyId}`
+- Billing & Integrations
+  - GET/POST `/invoices`, POST `/payments/intent`
+  - POST `/integrations/webhooks/stripe`, GET `/integrations/google/callback`
+
+## Database (Supabase)
+- Supabase Postgres with RLS by `org_id`, aligned to `docs/ERD.mmd`.
+- Use Supabase client on the frontend and server-side service role for privileged ops.
+- Migrations and policies maintained in SQL (`safe-migration.sql` and related files).
+
+## UI/UX baseline
+- Booking flow screens (you will provide images) are the design source of truth.
+- We will extract tokens (color, type scale, spacing, radii, shadows) and core components (buttons, inputs, selects, cards, tabs, modals, calendar/time-picker, stepper, toast) and apply consistently across Admin, Customer, and Delivery areas.
+
 ## Phasing
 - Phase 1 (MVP): Auth, services/tiers/groups, bookings/calendar, Stripe deposits, invoices, S3 uploads, download center, property sites (2 templates), Google Calendar, basic payouts
 - Phase 2: Packages (display overrides), coupons, territories, auto-assign, Drive/Dropbox export, branded/unbranded toggles, builder blocks expansion, CubiCasa
